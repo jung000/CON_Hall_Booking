@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CON Hall Booking System</title>
+    <link rel="icon" href="https://concihsr.in/wp-content/uploads/2024/10/CON-logo-small.png" />
+    <style>
+        :root{ --primary:#003366; --accent:#0055aa; --card:#ffffff; --muted:#777; --bg:#f4f6f8; }
+        body{ font-family: Arial, sans-serif; margin:0; background:var(--bg); color:#222; }
+        header{ background:var(--primary); color:white; padding:18px 10px; display:flex; justify-content:center; align-items:center; }
+        header h1{ margin:0; font-size:22px; text-align:center; }
+        .container{ max-width:1100px; margin:20px auto; padding:10px; }
+        .nav-links{ text-align:center; margin-bottom:16px; }
+        .nav-links a{ color:var(--primary); margin:0 8px; text-decoration:none; padding:8px 12px; background:#fff; border-radius:6px; }
+        .content{ display:none; background:var(--card); padding:20px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+        .content.active{ display:block; }
+        .form-container{ max-width:900px; margin:auto; }
+        .form-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+        .form-group{ margin-bottom:12px; }
+        label{ display:block; font-weight:600; margin-bottom:6px; }
+        input[type="text"], input[type="date"], input[type="time"], input[type="number"], textarea{ width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box; }
+        button{ background:var(--primary); color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; }
+        button.secondary{ background:#666; }
+        .rooms-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:10px; }
+        .room-card{ background:#fff; border:1px solid #e6e6e6; padding:10px; border-radius:8px; display:flex; align-items:center; gap:10px; box-shadow:0 1px 3px rgba(0,0,0,0.03); }
+        .room-card input{ width:18px; height:18px; }
+        .modal{ display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; }
+        .modal .modal-content{ background:#fff; padding:18px; border-radius:8px; max-width:600px; width:90%; }
+        .admin-login { max-width:420px; margin:auto; }
+        .logo { background:#fff; display:flex; justify-content:center; padding:12px; border-radius:8px; margin-bottom:12px; }
+        table{ width:100%; border-collapse:collapse; margin-top:12px; }
+        th, td{ border:1px solid #eee; padding:8px; text-align:left; }
+        th{ background:var(--primary); color:white; }
+        .stats{ display:flex; gap:8px; margin-bottom:12px; }
+        .stat-card{ background:#fff; padding:10px; border-radius:8px; }
+    </style>
+</head>
+<body>
+<header><h1>CON Hall Booking</h1></header>
+<div class="container">
+    <div class="nav-links">
+        <a href="#" class="nav-link active" data-target="booking">Book Room</a>
+        <a href="#" class="nav-link" data-target="events">View Events</a>
+        <a href="#" class="nav-link" data-target="admin-login">Admin</a>
+        <a href="#" class="nav-link" data-target="admin" id="admin-nav" style="display:none;">Dashboard</a>
+    </div>
+
+    <div class="content active" id="booking">
+        <h2>Book Conference Rooms</h2>
+        <div class="form-container">
+            <div class="form-group"><label>Rooms</label><div id="roomsContainer" class="rooms-grid"></div></div>
+            <div class="form-grid">
+                <div class="form-group"><label>Event Name</label><input type="text" id="eventName" autocomplete="off" autocorrect="off"></div>
+                <div class="form-group"><label>Department</label><input type="text" id="department" autocomplete="off" autocorrect="off"></div>
+
+                <div class="form-group"><label>Start Date</label><input type="date" id="startDate" autocomplete="off"></div>
+                <div class="form-group"><label>End Date</label><input type="date" id="endDate" autocomplete="off"></div>
+
+                <div class="form-group"><label>Start Time</label><input type="time" id="startTime"></div>
+                <div class="form-group"><label>End Time</label><input type="time" id="endTime"></div>
+
+                <div class="form-group"><label>Participants</label><input type="number" id="participants" value="1" min="1"></div>
+                <div class="form-group"><label>Notes</label><textarea id="notes"></textarea></div>
+            </div>
+            <div style="margin-top:12px;"><button id="bookingButton">Submit Booking</button></div>
+        </div>
+    </div>
+
+    <div class="content" id="events"><h2>Scheduled Events</h2><div id="eventsList"></div></div>
+
+    <div class="content" id="admin-login">
+        <div class="admin-login">
+            <div class="logo"><img src="https://concihsr.in/wp-content/uploads/2024/10/CON-logo-small.png" alt="logo" style="height:48px;"></div>
+            <h3 style="text-align:center;margin-top:0;">Admin Login</h3>
+            <div class="form-container">
+                <div class="form-group"><label>Username</label><input type="text" id="adminUsername" autocomplete="off"></div>
+                <div class="form-group"><label>Password</label><input type="password" id="adminPassword" autocomplete="off"></div>
+                <div style="text-align:center;margin-top:8px;"><button id="adminLoginButton">Login</button></div>
+                <div id="adminLoginError" style="color:red; display:none; text-align:center; margin-top:8px;">Invalid login</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="content" id="admin">
+        <h2>Admin Dashboard</h2>
+        <div class="stat-card stats"><div class="stat-card">Pending: <span id="pendingCount">0</span></div><div class="stat-card">Approved: <span id="approvedCount">0</span></div></div>
+        <h3>Add New Room</h3>
+        <div class="form-container"><div class="form-group"><input type="text" id="newRoomName" placeholder="Room name" autocomplete="off"></div><div><button id="addRoomButton">Add Room</button></div></div>
+
+        <h3>Pending Approval</h3>
+        <table><thead><tr><th>Event</th><th>Rooms</th><th>Dates</th><th>Time</th><th>Participants</th><th>Dept</th><th>Actions</th></tr></thead><tbody id="pendingRequests"></tbody></table>
+
+        <h3>Approved Bookings</h3>
+        <table><thead><tr><th>Event</th><th>Rooms</th><th>Dates</th><th>Time</th><th>Participants</th><th>Dept</th><th>Actions</th></tr></thead><tbody id="approvedBookings"></tbody></table>
+    </div>
+</div>
+
+<div class="modal" id="messageModal"><div class="modal-content"><h3 id="modalTitle"></h3><div id="modalContent"></div><div style="text-align:right;margin-top:8px;"><button id="modalOkButton">OK</button></div></div></div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+// small helpers
+function el(q){return document.querySelector(q);}
+function showModal(title, content){ el('#modalTitle').textContent=title; el('#modalContent').innerHTML=content; el('#messageModal').style.display='flex'; }
+el('#modalOkButton').onclick = ()=> el('#messageModal').style.display='none';
+
+// clear on first focus to avoid previous autofill values showing
+document.querySelectorAll('input[type="text"], textarea').forEach(inp=>{
+    inp.dataset._cleared = "false";
+    inp.addEventListener('focus', function(){ if(this.dataset._cleared==="false"){ this.value=''; this.dataset._cleared="true"; } });
+});
+
+function loadRooms(){
+    fetch('/rooms').then(r=>r.json()).then(rooms=>{
+        const container = el('#roomsContainer'); container.innerHTML='';
+        rooms.forEach(rm=>{
+            const div = document.createElement('div');
+            div.className='room-card';
+            div.innerHTML = `<input type="checkbox" class="room-checkbox" value="${rm.id}" id="room_${rm.id}"><label for="room_${rm.id}">${rm.name}</label>`;
+            container.appendChild(div);
+        });
+    });
+}
+
+document.getElementById('bookingButton').onclick = ()=>{
+    const selectedBoxes = Array.from(document.querySelectorAll('.room-checkbox:checked'));
+    const selected = selectedBoxes.map(cb=>cb.value);
+    const selectedNames = selectedBoxes.map(cb=>cb.nextElementSibling.textContent.trim());
+    const data = {
+        rooms: selected,
+        eventName: el('#eventName').value.trim(),
+        startDate: el('#startDate').value,
+        endDate: el('#endDate').value,
+        startTime: el('#startTime').value,
+        endTime: el('#endTime').value,
+        participants: el('#participants').value,
+        department: el('#department').value.trim(),
+        notes: el('#notes').value.trim()
+    };
+    // frontend validations
+    if(!data.eventName){ showModal('Error','Event name is required'); return; }
+    if(selected.length===0){ showModal('Error','Select at least one room'); return; }
+    if(!data.startDate){ showModal('Error','Start date is required'); return; }
+    if(!data.endDate){ showModal('Error','End date is required'); return; }
+    const today = new Date(); today.setHours(0,0,0,0);
+    const s = new Date(data.startDate); const e = new Date(data.endDate);
+    if(s < today){ showModal('Error','Start date cannot be in the past'); return; }
+    if(e < s){ showModal('Error','End date cannot be before start date'); return; }
+    if(!data.startTime || !data.endTime){ showModal('Error','Start and end time required'); return; }
+    if(data.startDate===data.endDate && data.endTime <= data.startTime){ showModal('Error','End time must be after start time for same-day bookings'); return; }
+
+    fetch('/book',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)})
+    .then(r=>r.json()).then(res=>{
+        if(res.success){
+            const bk = res.booking || data;
+            const details = `
+                <p><strong>Event:</strong> ${bk.eventName}</p>
+                <p><strong>Rooms:</strong> ${selectedNames.join(', ')}</p>
+                <p><strong>Dates:</strong> ${bk.startDate} to ${bk.endDate}</p>
+                <p><strong>Time:</strong> ${bk.startTime} - ${bk.endTime}</p>
+                <p><strong>Participants:</strong> ${bk.participants}</p>
+                <p><strong>Department:</strong> ${bk.department}</p>
+                <p><strong>Notes:</strong> ${bk.notes || 'None'}</p>
+                <hr><p>Status: <strong>Pending admin approval</strong></p>
+            `;
+            showModal('Booking Confirmation', details);
+
+            // clear form
+            document.querySelectorAll('input, textarea').forEach(inp=>{
+                if(inp.type==='checkbox') inp.checked = false;
+                else if(inp.type!=='button' && inp.type!=='submit') inp.value='';
+            });
+            // reset cleared flags so focuses clear again next time
+            document.querySelectorAll('input[type="text"], textarea').forEach(i=>i.dataset._cleared='false');
+        } else {
+            showModal('Error', res.error || 'Failed to submit booking');
+        }
+    }).catch(err=> showModal('Error','Server error: '+err.message));
+};
+
+function renderPendingBookings(){
+    fetch('/pending').then(r=>r.json()).then(events=>{
+        el('#pendingRequests').innerHTML=''; el('#pendingCount').textContent = events.length;
+        events.forEach(ev=>{
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${ev.eventName}</td><td>${ev.rooms.join(', ')}</td><td>${ev.startDate} to ${ev.endDate}</td>
+                <td>${ev.startTime} - ${ev.endTime}</td><td>${ev.participants}</td><td>${ev.department}</td>
+                <td><button class="btn-accept" data-id="${ev.id}">Accept</button> <button class="btn-reject" data-id="${ev.id}">Reject</button></td>`;
+            el('#pendingRequests').appendChild(tr);
+        });
+    });
+}
+
+function renderApprovedBookings(){
+    fetch('/approved').then(r=>r.json()).then(events=>{
+        el('#approvedBookings').innerHTML=''; el('#approvedCount').textContent = events.length;
+        events.forEach(ev=>{
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${ev.eventName}</td><td>${ev.rooms.join(', ')}</td><td>${ev.startDate} to ${ev.endDate}</td>
+                <td>${ev.startTime} - ${ev.endTime}</td><td>${ev.participants}</td><td>${ev.department}</td>
+                <td><button class="btn-delete" data-id="${ev.id}">Delete</button></td>`;
+            el('#approvedBookings').appendChild(tr);
+        });
+    });
+}
+
+function renderPublicEvents(){
+    fetch('/approved').then(r=>r.json()).then(events=>{
+        const container = el('#eventsList'); container.innerHTML='';
+        if(events.length===0){ container.innerHTML='<p>No approved events yet.</p>'; return; }
+        const table = document.createElement('table');
+        table.innerHTML = '<thead><tr><th>Event</th><th>Rooms</th><th>Dates</th><th>Time</th><th>Participants</th><th>Dept</th></tr></thead>';
+        const tbody = document.createElement('tbody');
+        events.forEach(ev=>{
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${ev.eventName}</td><td>${ev.rooms.join(', ')}</td><td>${ev.startDate} to ${ev.endDate}</td>
+                <td>${ev.startTime} - ${ev.endTime}</td><td>${ev.participants}</td><td>${ev.department}</td>`;
+            tbody.appendChild(tr);
+        });
+        table.appendChild(tbody); container.appendChild(table);
+    });
+}
+
+document.addEventListener('click', function(e){
+    if(e.target.classList.contains('btn-accept')){
+        fetch('/approve',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:e.target.dataset.id})})
+        .then(r=>r.json()).then(()=>{ renderPendingBookings(); renderApprovedBookings(); renderPublicEvents(); });
+    }
+    if(e.target.classList.contains('btn-reject')){
+        fetch('/reject',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:e.target.dataset.id})})
+        .then(r=>r.json()).then(()=>{ renderPendingBookings(); });
+    }
+    if(e.target.classList.contains('btn-delete')){
+        fetch('/delete',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id:e.target.dataset.id})})
+        .then(r=>r.json()).then(()=>{ renderApprovedBookings(); renderPublicEvents(); });
+    }
+});
+
+document.getElementById('addRoomButton').onclick = ()=>{
+    const name = el('#newRoomName').value.trim();
+    if(!name){ showModal('Error','Room name is required'); return; }
+    fetch('/rooms/add',{method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name})})
+    .then(r=>r.json()).then(res=>{ if(res.success){ showModal('Success', res.message); loadRooms(); } else { showModal('Error', res.error || 'Failed'); } });
+};
+
+const ADMIN_USERNAME='Admin', ADMIN_PASSWORD='Admin@cihsr2411';
+document.getElementById('adminLoginButton').onclick = ()=>{
+    if(el('#adminUsername').value===ADMIN_USERNAME && el('#adminPassword').value===ADMIN_PASSWORD){
+        el('#admin').classList.add('active'); el('#admin-nav').style.display='inline';
+        renderPendingBookings(); renderApprovedBookings();
+    } else { el('#adminLoginError').style.display='block'; }
+};
+
+document.querySelectorAll('.nav-link').forEach(l=> l.addEventListener('click', function(ev){
+    ev.preventDefault();
+    document.querySelectorAll('.content').forEach(c=> c.classList.remove('active'));
+    document.getElementById(this.dataset.target).classList.add('active');
+    if(this.dataset.target==='events'){ renderPublicEvents(); }
+    if(this.dataset.target==='booking'){ loadRooms(); }
+}));
+
+const socket = io();
+socket.on('update_events', ()=>{ renderPublicEvents(); renderApprovedBookings(); renderPendingBookings(); loadRooms(); });
+
+// initial load
+loadRooms(); renderPublicEvents();
+</script>
+</body>
+</html>
