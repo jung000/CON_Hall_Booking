@@ -110,6 +110,7 @@
             </div>
             <div style="margin-top:12px;">
                 <button id="bookingButton">Submit Booking</button>
+                <button id="resetButton" class="secondary">Reset Form</button>
                 <span class="success-message" id="bookingSuccess">Booking submitted successfully!</span>
             </div>
         </div>
@@ -277,6 +278,26 @@ els('input[type="text"], textarea').forEach(inp => {
     });
 });
 
+// Reset booking form
+function resetBookingForm() {
+    els('input, textarea').forEach(inp => {
+        if (inp.type === 'checkbox') inp.checked = false;
+        else if (inp.type !== 'button' && inp.type !== 'submit') inp.value = '';
+    });
+    
+    // Reset date min values
+    el('#startDate').min = today;
+    el('#endDate').min = today;
+    
+    // Reset cleared flags
+    els('input[type="text"], textarea').forEach(i => i.dataset._cleared = 'false');
+    
+    // Reload rooms
+    loadRooms();
+    
+    clearValidation();
+}
+
 // Load rooms with availability check
 function loadRooms() {
     const startDate = el('#startDate').value;
@@ -289,10 +310,13 @@ function loadRooms() {
         url += `?startDate=${startDate}&endDate=${endDate}&startTime=${startTime}&endTime=${endTime}`;
     }
     
+    // Show loading state
+    const container = el('#roomsContainer');
+    container.innerHTML = '<div style="text-align:center;padding:20px;">Loading rooms...</div>';
+    
     fetch(url)
     .then(r => r.json())
     .then(rooms => {
-        const container = el('#roomsContainer'); 
         container.innerHTML = '';
         
         // Also update room filter
@@ -306,7 +330,7 @@ function loadRooms() {
             div.innerHTML = `
                 <input type="checkbox" class="room-checkbox" value="${rm.id}" id="room_${rm.id}" 
                     ${rm.available === false ? 'disabled' : ''}>
-                <label for="room_${rm.id}">${rm.name} ${rm.available === false ? '(Unavailable)' : ''}</label>
+                <label for="room_${rm.id}" data-name="${rm.name}">${rm.name} ${rm.available === false ? '(Unavailable)' : ''}</label>
             `;
             container.appendChild(div);
             
@@ -322,7 +346,10 @@ function loadRooms() {
             el('#totalRooms').textContent = rooms.length;
         }
     })
-    .catch(err => console.error('Error loading rooms:', err));
+    .catch(err => {
+        console.error('Error loading rooms:', err);
+        container.innerHTML = '<div style="text-align:center;color:var(--error);padding:20px;">Failed to load rooms. Please try again.</div>';
+    });
 }
 
 // Validate booking form
@@ -377,6 +404,14 @@ function validateForm() {
             showError('endDateError', 'End date cannot be before start date');
             isValid = false;
         }
+        
+        // Add maximum date limit (e.g., 1 year from now)
+        const maxDate = new Date();
+        maxDate.setFullYear(maxDate.getFullYear() + 1);
+        if (start > maxDate || end > maxDate) {
+            showError('startDateError', 'Booking cannot be more than 1 year in advance');
+            isValid = false;
+        }
     }
     
     // Validate times
@@ -412,7 +447,7 @@ el('#bookingButton').onclick = () => {
     
     const selectedBoxes = Array.from(els('.room-checkbox:checked'));
     const selected = selectedBoxes.map(cb => cb.value);
-    const selectedNames = selectedBoxes.map(cb => cb.nextElementSibling.textContent.trim());
+    const selectedNames = selectedBoxes.map(cb => cb.nextElementSibling.dataset.name);
     
     const data = {
         rooms: selected,
@@ -433,10 +468,31 @@ el('#bookingButton').onclick = () => {
     
     fetch('/book', {
         method: 'POST', 
-        headers: {'Content-Type': 'application/json'}, 
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }, 
         body: JSON.stringify(data)
     })
-    .then(r => r.json())
+    .then(response => {
+        const contentType = response.headers.get('content-type');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            return response.text().then(text => {
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    throw new Error(`Server returned non-JSON: ${text.substring(0, 100)}`);
+                }
+            });
+        }
+    })
     .then(res => {
         // Reset button state
         el('#bookingButton').textContent = originalText;
@@ -457,17 +513,7 @@ el('#bookingButton').onclick = () => {
             showModal('Booking Confirmation', details);
             
             // Clear form
-            els('input, textarea').forEach(inp => {
-                if (inp.type === 'checkbox') inp.checked = false;
-                else if (inp.type !== 'button' && inp.type !== 'submit') inp.value = '';
-            });
-            
-            // Reset date min values
-            el('#startDate').min = today;
-            el('#endDate').min = today;
-            
-            // Reset cleared flags
-            els('input[type="text"], textarea').forEach(i => i.dataset._cleared = 'false');
+            resetBookingForm();
             
             showSuccess('bookingSuccess', 'Booking submitted successfully!');
         } else {
@@ -481,6 +527,9 @@ el('#bookingButton').onclick = () => {
         showModal('Error', 'Server error: ' + err.message);
     });
 };
+
+// Reset form button
+el('#resetButton').onclick = resetBookingForm;
 
 // Real-time room availability check when dates/times change
 ['#startDate', '#endDate', '#startTime', '#endTime'].forEach(selector => {
@@ -636,10 +685,31 @@ document.addEventListener('click', function(e) {
         
         fetch('/approve', {
             method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }, 
             body: JSON.stringify({id: e.target.dataset.id})
         })
-        .then(r => r.json())
+        .then(response => {
+            const contentType = response.headers.get('content-type');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            } else {
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        throw new Error(`Server returned non-JSON: ${text.substring(0, 100)}`);
+                    }
+                });
+            }
+        })
         .then(() => {
             button.textContent = originalText;
             button.disabled = false;
@@ -651,6 +721,7 @@ document.addEventListener('click', function(e) {
             button.textContent = originalText;
             button.disabled = false;
             console.error('Error approving booking:', err);
+            alert('Error: ' + err.message);
         });
     }
     
@@ -662,10 +733,31 @@ document.addEventListener('click', function(e) {
         
         fetch('/reject', {
             method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }, 
             body: JSON.stringify({id: e.target.dataset.id})
         })
-        .then(r => r.json())
+        .then(response => {
+            const contentType = response.headers.get('content-type');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            } else {
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        throw new Error(`Server returned non-JSON: ${text.substring(0, 100)}`);
+                    }
+                });
+            }
+        })
         .then(() => {
             button.textContent = originalText;
             button.disabled = false;
@@ -675,6 +767,7 @@ document.addEventListener('click', function(e) {
             button.textContent = originalText;
             button.disabled = false;
             console.error('Error rejecting booking:', err);
+            alert('Error: ' + err.message);
         });
     }
     
@@ -688,10 +781,31 @@ document.addEventListener('click', function(e) {
         
         fetch('/delete', {
             method: 'POST', 
-            headers: {'Content-Type': 'application/json'}, 
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }, 
             body: JSON.stringify({id: e.target.dataset.id})
         })
-        .then(r => r.json())
+        .then(response => {
+            const contentType = response.headers.get('content-type');
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
+            } else {
+                return response.text().then(text => {
+                    try {
+                        return JSON.parse(text);
+                    } catch (e) {
+                        throw new Error(`Server returned non-JSON: ${text.substring(0, 100)}`);
+                    }
+                });
+            }
+        })
         .then(() => {
             button.textContent = originalText;
             button.disabled = false;
@@ -702,6 +816,7 @@ document.addEventListener('click', function(e) {
             button.textContent = originalText;
             button.disabled = false;
             console.error('Error deleting booking:', err);
+            alert('Error: ' + err.message);
         });
     }
 });
@@ -721,10 +836,31 @@ el('#addRoomButton').onclick = () => {
     
     fetch('/rooms/add', {
         method: 'POST', 
-        headers: {'Content-Type': 'application/json'}, 
-        body: JSON.stringify({name})
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        }, 
+        body: JSON.stringify({name: name})
     })
-    .then(r => r.json())
+    .then(response => {
+        const contentType = response.headers.get('content-type');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            return response.text().then(text => {
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    throw new Error(`Server returned non-JSON: ${text.substring(0, 100)}`);
+                }
+            });
+        }
+    })
     .then(res => {
         button.textContent = originalText;
         button.disabled = false;
@@ -733,6 +869,13 @@ el('#addRoomButton').onclick = () => {
             showSuccess('roomSuccess', res.message);
             el('#newRoomName').value = '';
             loadRooms();
+            
+            // Add to room filter dropdown
+            const roomFilter = el('#roomFilter');
+            const option = document.createElement('option');
+            option.value = res.room_id || 'new';
+            option.textContent = name;
+            roomFilter.appendChild(option);
         } else {
             showError('roomNameError', res.error || 'Failed to add room');
         }
@@ -744,7 +887,7 @@ el('#addRoomButton').onclick = () => {
     });
 };
 
-// Admin login (in a real app, this should be handled server-side)
+// Admin login
 el('#adminLoginButton').onclick = () => {
     const username = el('#adminUsername').value;
     const password = el('#adminPassword').value;
@@ -760,10 +903,39 @@ el('#adminLoginButton').onclick = () => {
     button.disabled = true;
     el('#adminLoginError').style.display = 'none';
     
-    // Simulate server request delay
-    setTimeout(() => {
-        // In a real application, this would be a server-side authentication check
-        if (username === 'Admin' && password === 'Admin@cihsr2411') {
+    // Use the proper admin login endpoint
+    fetch('/admin/login', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({username, password})
+    })
+    .then(response => {
+        const contentType = response.headers.get('content-type');
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        if (contentType && contentType.includes('application/json')) {
+            return response.json();
+        } else {
+            return response.text().then(text => {
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    throw new Error(`Server returned non-JSON: ${text.substring(0, 100)}`);
+                }
+            });
+        }
+    })
+    .then(res => {
+        button.textContent = originalText;
+        button.disabled = false;
+        
+        if (res.success) {
             el('#admin').classList.add('active');
             el('#admin-nav').style.display = 'inline';
             el('#logout-btn').style.display = 'inline';
@@ -773,12 +945,14 @@ el('#adminLoginButton').onclick = () => {
             renderApprovedBookings();
             loadRooms();
         } else {
-            showError('adminLoginError', 'Invalid login credentials');
+            showError('adminLoginError', res.error || 'Invalid login credentials');
         }
-        
+    })
+    .catch(err => {
         button.textContent = originalText;
         button.disabled = false;
-    }, 1000);
+        showError('adminLoginError', 'Server error: ' + err.message);
+    });
 };
 
 // Logout function
@@ -809,6 +983,19 @@ els('.nav-link').forEach(link => {
         }
         if (this.dataset.target === 'booking') {
             loadRooms();
+        }
+        if (this.dataset.target === 'admin') {
+            // Load stats when admin dashboard is opened
+            fetch('/stats')
+            .then(r => r.json())
+            .then(stats => {
+                if (stats.success !== false) {
+                    el('#pendingCount').textContent = stats.pending;
+                    el('#approvedCount').textContent = stats.approved;
+                    el('#totalRooms').textContent = stats.total_rooms;
+                }
+            })
+            .catch(err => console.error('Error loading stats:', err));
         }
     });
 });
